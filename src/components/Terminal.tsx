@@ -8,9 +8,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TerminalProps {
   currentFile?: { name: string; language?: string; content?: string };
+  onPreviewUrl?: (url: string) => void;
 }
 
-export const Terminal = ({ currentFile }: TerminalProps) => {
+export const Terminal = ({ currentFile, onPreviewUrl }: TerminalProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [input, setInput] = useState('');
   const [output, setOutput] = useState<string[]>(['Welcome to AIndroCode Terminal', 'Type any command or "run" to execute current file', '']);
@@ -60,14 +61,24 @@ export const Terminal = ({ currentFile }: TerminalProps) => {
         if (result.stderr) addOutput(`ERROR: ${result.stderr}`);
         addOutput(`Exit code: ${result.exitCode}`);
         
+        if (result.previewUrl && onPreviewUrl) {
+          onPreviewUrl(result.previewUrl);
+          addOutput(`Preview available at: ${result.previewUrl}`);
+        }
+        
         if (!result.success) {
           toast({
             title: 'Execution failed',
             description: result.stderr || 'Unknown error',
             variant: 'destructive'
           });
+        } else {
+          toast({
+            title: 'Execution completed',
+            description: 'Code executed successfully'
+          });
         }
-      } else if (command.startsWith('npm install') || command.startsWith('pip install')) {
+      } else if (command.startsWith('npm install') || command.startsWith('pip install') || command.startsWith('apt install') || command.startsWith('apt-get install')) {
         // Package installation
         const parts = command.split(' ');
         const packageManager = parts[0] as 'npm' | 'pip';

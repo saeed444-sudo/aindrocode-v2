@@ -6,6 +6,7 @@ import { CodeEditor } from '@/components/CodeEditor';
 import { FileExplorer, FileNode } from '@/components/FileExplorer';
 import { Terminal } from '@/components/Terminal';
 import { AIChat } from '@/components/AIChat';
+import { Preview } from '@/components/Preview';
 import { Button } from '@/components/ui/button';
 import { Settings, LogOut, Play, Save, Menu } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,6 +34,7 @@ export const IDE = () => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string>();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -194,20 +196,25 @@ export const IDE = () => {
           />
         </motion.div>
 
-        {/* Editor */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            {selectedFile && (
-              <CodeEditor
-                value={selectedFile.content || ''}
-                language={selectedFile.language || 'javascript'}
-                onChange={handleCodeChange}
-              />
-            )}
+        {/* Editor and Preview */}
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-hidden">
+              {selectedFile && (
+                <CodeEditor
+                  value={selectedFile.content || ''}
+                  language={selectedFile.language || 'javascript'}
+                  onChange={handleCodeChange}
+                />
+              )}
+            </div>
+
+            {/* Terminal */}
+            <Terminal currentFile={selectedFile} onPreviewUrl={setPreviewUrl} />
           </div>
 
-          {/* Terminal */}
-          <Terminal currentFile={selectedFile} />
+          {/* Preview */}
+          <Preview previewUrl={previewUrl} />
         </div>
       </div>
 
