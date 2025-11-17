@@ -14,6 +14,7 @@ export interface ExecuteCodeResponse {
   stderr: string;
   executionTime?: number;
   error?: string;
+  previewUrl?: string;
 }
 
 export interface CommandRequest {

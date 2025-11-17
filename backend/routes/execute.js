@@ -56,7 +56,8 @@ router.post('/run', async (req, res) => {
     if (language === 'javascript' || language === 'typescript') {
       const hasPackageJson = files.some(f => f.path === 'package.json');
       if (hasPackageJson) {
-        await sandbox.process.start({ cmd: 'npm install' });
+        const installProc = await sandbox.process.start({ cmd: 'npm install' });
+        await installProc.wait();
       }
     }
 
@@ -64,15 +65,25 @@ router.post('/run', async (req, res) => {
     if (language === 'python') {
       const hasRequirements = files.some(f => f.path === 'requirements.txt');
       if (hasRequirements) {
-        await sandbox.process.start({ cmd: 'pip install -r requirements.txt' });
+        const installProc = await sandbox.process.start({ cmd: 'pip install -r requirements.txt' });
+        await installProc.wait();
       }
     }
 
-    // Execute code
+    // Execute code with streaming output
+    let stdout = '';
+    let stderr = '';
+    
     const process = await sandbox.process.start({
       cmd: `${config.cmd} ${filename}`,
-      onStdout: (data) => console.log('stdout:', data),
-      onStderr: (data) => console.log('stderr:', data),
+      onStdout: (data) => {
+        stdout += data;
+        console.log('stdout:', data);
+      },
+      onStderr: (data) => {
+        stderr += data;
+        console.log('stderr:', data);
+      },
     });
 
     // Send input if provided
@@ -83,12 +94,22 @@ router.post('/run', async (req, res) => {
     // Wait for completion
     const result = await process.wait();
 
+    // Get sandbox URL if it's a web project
+    let previewUrl = null;
+    if (language === 'javascript' || language === 'typescript') {
+      const hasHtml = files.some(f => f.path.endsWith('.html'));
+      if (hasHtml) {
+        previewUrl = `https://${sandbox.getHostname()}`;
+      }
+    }
+
     res.json({
       success: result.exitCode === 0,
       exitCode: result.exitCode,
-      stdout: result.stdout || '',
-      stderr: result.stderr || '',
-      executionTime: result.timestamp
+      stdout: stdout || result.stdout || '',
+      stderr: stderr || result.stderr || '',
+      executionTime: result.timestamp,
+      previewUrl
     });
 
   } catch (error) {
@@ -106,7 +127,7 @@ router.post('/run', async (req, res) => {
 
 // Execute terminal command
 router.post('/command', async (req, res) => {
-  const { command, cwd = '/', timeout = 30000 } = req.body;
+  const { command, cwd = '/home/user', timeout = 30000 } = req.body;
 
   if (!command) {
     return res.status(400).json({ error: 'Command is required' });
@@ -120,11 +141,20 @@ router.post('/command', async (req, res) => {
       timeoutMs: timeout
     });
 
+    let stdout = '';
+    let stderr = '';
+
     const process = await sandbox.process.start({
       cmd: command,
       cwd,
-      onStdout: (data) => console.log('stdout:', data),
-      onStderr: (data) => console.log('stderr:', data),
+      onStdout: (data) => {
+        stdout += data;
+        console.log('stdout:', data);
+      },
+      onStderr: (data) => {
+        stderr += data;
+        console.log('stderr:', data);
+      },
     });
 
     const result = await process.wait();
@@ -132,8 +162,8 @@ router.post('/command', async (req, res) => {
     res.json({
       success: result.exitCode === 0,
       exitCode: result.exitCode,
-      stdout: result.stdout || '',
-      stderr: result.stderr || '',
+      stdout: stdout || result.stdout || '',
+      stderr: stderr || result.stderr || '',
       cwd
     });
 
@@ -161,7 +191,7 @@ router.post('/install', async (req, res) => {
   const commands = {
     npm: `npm install ${packages.join(' ')}`,
     pip: `pip install ${packages.join(' ')}`,
-    apt: `apt-get install -y ${packages.join(' ')}`,
+    apt: `apt-get update && apt-get install -y ${packages.join(' ')}`,
     cargo: `cargo install ${packages.join(' ')}`
   };
 
@@ -181,10 +211,19 @@ router.post('/install', async (req, res) => {
       timeoutMs: 120000 // 2 minutes for installations
     });
 
+    let stdout = '';
+    let stderr = '';
+
     const process = await sandbox.process.start({
       cmd: command,
-      onStdout: (data) => console.log('stdout:', data),
-      onStderr: (data) => console.log('stderr:', data),
+      onStdout: (data) => {
+        stdout += data;
+        console.log('stdout:', data);
+      },
+      onStderr: (data) => {
+        stderr += data;
+        console.log('stderr:', data);
+      },
     });
 
     const result = await process.wait();
@@ -192,8 +231,8 @@ router.post('/install', async (req, res) => {
     res.json({
       success: result.exitCode === 0,
       exitCode: result.exitCode,
-      stdout: result.stdout || '',
-      stderr: result.stderr || '',
+      stdout: stdout || result.stdout || '',
+      stderr: stderr || result.stderr || '',
       packages
     });
 
