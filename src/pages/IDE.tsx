@@ -10,8 +10,18 @@ import { Preview } from '@/components/Preview';
 import { Button } from '@/components/ui/button';
 import { Settings, LogOut, Play, Save, Menu } from 'lucide-react';
 import { toast } from 'sonner';
-import { dbManager } from '@/lib/indexedDB';
+import { dbManager, Project } from '@/lib/indexedDB';
 import { motion } from 'framer-motion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export const IDE = () => {
   const navigate = useNavigate();
@@ -35,12 +45,47 @@ export const IDE = () => {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>();
+  const [currentProjectId, setCurrentProjectId] = useState<string>('default-project');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load project from IndexedDB on mount
+  useEffect(() => {
+    const loadProject = async () => {
+      try {
+        const projects = await dbManager.getProjects();
+        if (projects.length > 0) {
+          const project = projects[0];
+          setCurrentProjectId(project.id);
+          const projectFiles = await dbManager.getProjectFiles(project.id);
+          if (projectFiles.length > 0) {
+            const convertToFileNodes = (files: any[]): FileNode[] => {
+              return files.map(f => ({
+                id: f.id,
+                name: f.name,
+                type: 'file' as const,
+                language: f.language,
+                content: f.content,
+                path: f.path,
+              }));
+            };
+            const loadedFiles = convertToFileNodes(projectFiles);
+            setFiles(loadedFiles);
+            setSelectedFile(loadedFiles[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load project:', error);
+      }
+    };
+    
+    loadProject();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUser(user);
-        // Check if AI mode is enabled
         const aiMode = localStorage.getItem('ai_mode_enabled');
         setAiEnabled(aiMode === 'true');
       } else {
@@ -164,7 +209,21 @@ export const IDE = () => {
     if (selectedFile && value !== undefined) {
       const updatedFile = { ...selectedFile, content: value };
       setSelectedFile(updatedFile);
-      setFiles(files.map((f) => (f.id === selectedFile.id ? updatedFile : f)));
+      
+      // Update files recursively
+      const updateInTree = (nodes: FileNode[]): FileNode[] => {
+        return nodes.map((node) => {
+          if (node.id === selectedFile.id) {
+            return updatedFile;
+          }
+          if (node.children) {
+            return { ...node, children: updateInTree(node.children) };
+          }
+          return node;
+        });
+      };
+      
+      setFiles(updateInTree(files));
     }
   };
 
@@ -185,10 +244,54 @@ export const IDE = () => {
     }, 1000);
   };
 
-  const handleSave = async () => {
-    if (selectedFile) {
-      // Save to IndexedDB
-      toast.success('File saved');
+  const handleSaveClick = () => {
+    setShowSaveDialog(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setIsSaving(true);
+    try {
+      // Save or update project
+      const project: Project = {
+        id: currentProjectId,
+        name: 'My Project',
+        description: 'AIndroCode Project',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        language: selectedFile?.language || 'javascript',
+      };
+      
+      await dbManager.saveProject(project);
+
+      // Save all files
+      const saveFilesRecursive = async (nodes: FileNode[], parentPath = '') => {
+        for (const node of nodes) {
+          if (node.type === 'file') {
+            await dbManager.saveFile({
+              id: node.id,
+              projectId: currentProjectId,
+              path: node.path || node.name,
+              name: node.name,
+              content: node.content || '',
+              language: node.language || 'plaintext',
+              updatedAt: Date.now(),
+            });
+          }
+          if (node.children) {
+            await saveFilesRecursive(node.children, node.path || node.name);
+          }
+        }
+      };
+
+      await saveFilesRecursive(files);
+      
+      toast.success('Project saved successfully!');
+      setShowSaveDialog(false);
+    } catch (error) {
+      console.error('Save failed:', error);
+      toast.error('Failed to save project');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -225,7 +328,7 @@ export const IDE = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleSave} title="Save">
+          <Button variant="ghost" size="icon" onClick={handleSaveClick} title="Save">
             <Save className="w-4 h-4" />
           </Button>
           <Button variant="default" size="icon" onClick={handleExecute} title="Run" disabled={isExecuting}>
@@ -290,6 +393,24 @@ export const IDE = () => {
 
       {/* AI Chat */}
       <AIChat isEnabled={aiEnabled} />
+
+      {/* Save Confirmation Dialog */}
+      <AlertDialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will save your current project and all files to local storage. Your work will be preserved even if you refresh or close the browser.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Project'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

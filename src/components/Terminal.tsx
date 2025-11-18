@@ -193,15 +193,16 @@ export const Terminal = ({ currentFile, onPreviewUrl }: TerminalProps) => {
             </div>
           </ScrollArea>
 
-          <div className="p-2 border-t border-border flex gap-2">
+          <div className="p-2 border-t border-border flex gap-2 bg-background">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type command (run, npm install, ls, etc.)..."
-              className="flex-1 bg-background px-3 py-1.5 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 bg-card px-3 py-1.5 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary border border-border"
               disabled={isExecuting}
+              autoComplete="off"
             />
             <Button
               size="sm"

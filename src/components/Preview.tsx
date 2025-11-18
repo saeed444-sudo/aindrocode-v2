@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Globe, X, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,13 @@ interface PreviewProps {
 export const Preview = ({ previewUrl }: PreviewProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [key, setKey] = useState(0);
+
+  // Auto-show preview when URL is available
+  useEffect(() => {
+    if (previewUrl) {
+      setIsVisible(true);
+    }
+  }, [previewUrl]);
 
   const handleRefresh = () => {
     setKey(prev => prev + 1);

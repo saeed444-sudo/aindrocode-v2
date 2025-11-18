@@ -48,7 +48,7 @@ export const AIChat = ({ isEnabled, onSendMessage, messages = [], isLoading = fa
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">AI Assistant</h3>
-                  <p className="text-xs text-muted-foreground">Claude 3.7 Sonnet</p>
+                  <p className="text-xs text-muted-foreground">GPT-5.1</p>
                 </div>
               </div>
               <Button
